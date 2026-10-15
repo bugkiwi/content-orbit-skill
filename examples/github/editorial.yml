@@ -1,0 +1,49 @@
+# Copy into the CONTENT/WEBSITE repository after installing content-orbit-skill there.
+# This template creates a PR; it never auto-merges or deploys generated drafts.
+name: Editorial discovery and drafting
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '23 5 * * 1'
+permissions:
+  contents: write
+  pull-requests: write
+concurrency:
+  group: content-orbit-skill-editorial
+  cancel-in-progress: false
+jobs:
+  editorial:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+      DATAFORSEO_LOGIN: ${{ secrets.DATAFORSEO_LOGIN }}
+      DATAFORSEO_PASSWORD: ${{ secrets.DATAFORSEO_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Mine native keyword opportunities and preserve existing plans
+        run: |
+          node --input-type=module <<'JS'
+          import {readFileSync} from 'node:fs';
+          import {execFileSync} from 'node:child_process';
+          const config=JSON.parse(readFileSync('content-orbit-skill.project.json','utf8'));
+          for(const locale of config.locales) {
+            const out=`${config.paths?.content ?? 'content/editorial'}/opportunities/${locale.id}/weekly.json`;
+            execFileSync('npx',['--no-install','content-orbit-skill','keywords','--project','content-orbit-skill.project.json','--locale',locale.id,'--output',out],{stdio:'inherit'});
+            execFileSync('npx',['--no-install','content-orbit-skill','plan','--project','content-orbit-skill.project.json','--input',out],{stdio:'inherit'});
+          }
+          JS
+      - name: Draft from previously prepared evidence-backed briefs
+        run: npx --no-install content-orbit-skill batch --project content-orbit-skill.project.json --limit 3
+      - run: npx --no-install content-orbit-skill qa --project content-orbit-skill.project.json
+      - uses: peter-evans/create-pull-request@v7
+        with:
+          branch: content-orbit-skill/editorial
+          title: 'Editorial opportunities and reviewed drafts'
+          body: 'Inspect native intent, verified evidence, briefs and generated articles. Merging makes approved due content eligible for the normal site build.'
+          add-paths: content/editorial

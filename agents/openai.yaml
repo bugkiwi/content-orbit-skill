@@ -1,0 +1,4 @@
+interface:
+  display_name: "Content Orbit Skill"
+  short_description: "Research, write, review and release project articles"
+  default_prompt: "Use $content-orbit-skill to research and prepare the next month of articles for the specified project."

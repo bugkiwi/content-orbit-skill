@@ -1,0 +1,16 @@
+{
+  "locale": "en",
+  "date": "2026-11-02",
+  "keyword": "replace with the researched keyword",
+  "intent": "Explain the actual question the searcher needs answered, based on inspected results.",
+  "reader": "The relevant project audience",
+  "originalInsight": {
+    "type": "original_framework",
+    "summary": "A concrete original decision framework developed for this researched user problem; replace with the actual framework.",
+    "source": "Editorial synthesis grounded in the project's verified product-facts.md; this is advice, not an experiment.",
+    "canPublish": true
+  },
+  "outline": ["Direct answer and the useful decision", "Concrete steps grounded in the actual product", "Tradeoffs and a relevant next step"],
+  "sources": [],
+  "notes": "Add verified primary sources for external factual or dated claims. Empty sources means the draft must rely on project facts and clearly labeled advice only."
+}

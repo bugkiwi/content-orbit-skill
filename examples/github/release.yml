@@ -1,0 +1,37 @@
+# Copy into the CONTENT/WEBSITE repository. The deploy hook must target this
+# repository's production branch; its build must run content-orbit-skill release.
+name: Release due editorial content
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '17 * * * *'
+permissions:
+  contents: read
+concurrency:
+  group: content-orbit-skill-release
+  cancel-in-progress: false
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      # Serialize jobs AND persist the deployment intent ledger across runners.
+      - uses: actions/cache/restore@v4
+        with:
+          path: .content-orbit-skill
+          key: orbit-release-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: orbit-release-
+      - run: npx --no-install content-orbit-skill release --project content-orbit-skill.project.json --deploy
+        env:
+          CONTENT_ORBIT_DEPLOY_HOOK: ${{ secrets.CONTENT_ORBIT_DEPLOY_HOOK }}
+      - uses: actions/cache/save@v4
+        if: always()
+        with:
+          path: .content-orbit-skill
+          key: orbit-release-${{ github.run_id }}-${{ github.run_attempt }}

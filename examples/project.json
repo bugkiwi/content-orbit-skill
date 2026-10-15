@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "name": "Example Project",
+  "siteUrl": "https://example.com",
+  "root": ".",
+  "description": "A project-specific product description maintained by the owner; replace with verified current capabilities.",
+  "audience": "The actual customers and the problems this project helps them solve.",
+  "author": "Example Project",
+  "factFiles": ["product-facts.md"],
+  "exclusions": ["Unsupported features, invented customer stories and unverified product promises"],
+  "timezone": "Asia/Shanghai",
+  "locales": [
+    {
+      "id": "en", "languageCode": "en", "country": "US", "locationCode": 2840,
+      "articleBase": "/blog", "seedKeywords": ["replace with your product category"],
+      "internalLinks": [{"path": "/", "label": "Product overview"}, {"path": "/pricing", "label": "Current pricing"}]
+    },
+    {
+      "id": "it", "languageCode": "it", "country": "IT", "locationCode": 2380,
+      "articleBase": "/it/blog", "seedKeywords": ["sostituire con la categoria del prodotto"],
+      "internalLinks": [{"path": "/it", "label": "Il prodotto"}, {"path": "/it/prezzi", "label": "Prezzi attuali"}]
+    }
+  ],
+  "calendar": {"weekdays": [1, 3, 5], "months": 1},
+  "paths": {"content": "content/editorial", "state": ".content-orbit-skill", "output": ".generated/content-orbit-skill"},
+  "models": {"decision": "typesafe/jev-1.13", "writer": "deepseek/deepseek-v4.1-flash", "reviewer": "deepseek/deepseek-v4.1-flash"},
+  "quality": {"minScore": 90, "maxRisk": 20, "minResults": 5, "approval": "quality-gated", "maxRevisions": 2},
+  "maxProviderCalls": 20,
+  "staticPages": [{"path": "/"}, {"path": "/pricing"}, {"path": "/blog"}, {"path": "/it"}, {"path": "/it/prezzi"}, {"path": "/it/blog"}],
+  "deployment": {"hookEnv": "CONTENT_ORBIT_DEPLOY_HOOK"}
+}
