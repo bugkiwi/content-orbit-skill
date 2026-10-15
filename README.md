@@ -8,16 +8,48 @@
 
 ## 工作流程
 
+内容生产与定时发布分别运行。前者负责形成可发布的文章，后者根据日期将批准稿件交给网站构建流程。
+
+### 选题、研究与写作
+
 ```mermaid
-flowchart LR
-    A["选题研究"] --> B["写作与审核"]
-    B --> C["按日期排期"]
-    C --> D["发布与 sitemap"]
+flowchart TD
+    Project["项目配置与产品资料"] --> Keywords["DataForSEO<br/>种子词扩展与关键词指标"]
+    Project --> Trends["Google Trends<br/>CSV / HTTPS RSS"]
+    Keywords --> Fit["JEV 相关性判断<br/>搜索意图与项目匹配"]
+    Trends --> Fit
+    Fit --> Topics["筛选文章机会<br/>去重并补充排期"]
+    Fit -. "功能建议或待核实词" .-> Notes["单独记录<br/>暂不进入文章排期"]
+    Topics --> Research["SERP 研究与事实核对<br/>搜索结果、主要来源与当地日期"]
+    Research --> Brief["写作简报<br/>读者、原创信息、提纲与引用"]
+    Brief --> Draft["文本模型起草<br/>按目标语言分别撰写"]
+    Draft --> Review["独立模型复核与规则校验<br/>事实、语言、链接与审核记录"]
+    Review --> Pass{"是否通过？"}
+    Pass -- "通过" --> Approved["批准稿件<br/>提交内容仓库，等待发布日期"]
+    Pass -- "返修，最多 2 轮" --> Draft
+    Pass -- "仍不通过" --> Held["保留草稿与复核意见<br/>等待后续维护"]
 ```
 
-DataForSEO 提供关键词和搜索结果数据，Google Trends 支持 CSV 与 RSS 输入。JEV 判断选题与项目的相关性；文本模型负责写作和复核。Agent 阅读来源、准备写作简报，并检查文章中的关键事实。
+Agent 负责阅读来源和准备简报，模型生成文章并单独复核。每轮修订保留草稿和审核记录；项目可选择自动按质量标准批准，或逐篇确认。
 
-审核通过的文章按项目时区发布。尚未到期的稿件留在内容目录，网站构建时只读取本次发布的文章快照，页面数据与 sitemap 保持一致。
+### 定时发布与维护
+
+```mermaid
+flowchart TD
+    Schedule["定时任务<br/>按配置周期检查"] --> Due{"稿件是否已到期<br/>使用项目配置的时区"}
+    Approved["已合并的批准稿件"] --> Due
+    Due -- "未到期" --> Waiting["保留排期<br/>等待下一次检查"]
+    Due -- "已到期" --> Snapshot["生成本次发布快照<br/>仅包含已批准且到期的文章"]
+    Snapshot --> Articles["文章数据<br/>正文、元数据与列表"]
+    Snapshot --> Sitemap["sitemap.xml<br/>本次文章与既有公共页面"]
+    Articles --> Deploy["网站构建与部署"]
+    Sitemap --> Deploy
+    Deploy --> Verify["部署验证<br/>公开页面、sitemap 与未来文章 404"]
+    Verify --> Observe["效果观察<br/>搜索表现、AI 引用与转化"]
+    Observe -. "维护建议" .-> Update["更新选题、来源与现有文章<br/>重新研究和审核"]
+```
+
+网站路由与 sitemap 读取同一份快照，未来稿件不进入公开构建。搜索表现与内容维护由项目维护者或定时 Agent 跟进；部署与检查方式见[网站发布说明](references/publication.md)。
 
 ## 安装
 
