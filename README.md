@@ -2,288 +2,168 @@
 
 **I hate AI slop. But AI is useful.**
 
-我讨厌 AI 泔水，但 AI 确实有用。这个 Skill 用真实研究、原创信息和可追溯的质量门槛，把 AI 用在有价值的内容生产上。
+用于 SEO/GEO 内容研究、写作和定期发布的 Agent Skill。它根据指定项目的产品资料和目标市场筛选选题，生成文章与审核记录，再按发布日期生成网站所需的文章数据和 sitemap。
 
-为指定项目挖掘 SEO/GEO 机会、研究选题、生成原生语言文章，并按日历逐步 release，同步更新 sitemap。产品事实、语言市场、模型、排期与发布方式都由项目配置决定。
+适用于维护产品博客、多语言内容站和编辑日历。各项目独立配置语言、模型、排期和发布方式，通过现有网站的构建流程上线。
 
-**适用对象：** 有明确产品事实、希望持续写原生多语言文章、愿意做真实研究和质量复核的项目。支持不同框架；网站接入通过构建适配器完成。
+## 工作流程
 
-## 安装 Skill
+```mermaid
+flowchart LR
+    A["挖掘选题<br/>关键词与趋势"] --> B["研究<br/>搜索意图与来源"]
+    B --> C["写作<br/>简报与文章"]
+    C --> D["审核<br/>事实与语言"]
+    D --> E["排期<br/>批准稿件"]
+    E --> F["发布<br/>文章与 sitemap"]
+```
 
-需要 Node.js 22+。在要使用 Skill 的项目根目录，按标准 [Skills CLI](https://github.com/vercel-labs/skills) 方式安装：
+DataForSEO 提供关键词和搜索结果数据，Google Trends 支持 CSV 与 RSS 输入。JEV 判断选题与项目的相关性；文本模型负责写作和复核。Agent 阅读来源、准备写作简报，并检查文章中的关键事实。
+
+审核通过的文章按项目时区发布。尚未到期的稿件留在内容目录，网站构建时只读取本次发布的文章快照，页面数据与 sitemap 保持一致。
+
+## 安装
+
+需要 Node.js 22+、npm，以及支持 Agent Skills 的工具。
+
+在目标项目目录执行：
 
 ```sh
 npx skills add https://github.com/bugkiwi/content-orbit-skill
 ```
 
-安装器会引导选择 Agent 与安装方式。也可指定 Agent 和范围：
+安装器会提示选择 Agent 和安装范围。也可通过参数指定，例如：
 
 ```sh
-# 当前项目，供 Codex 和 Claude Code 使用
 npx skills add https://github.com/bugkiwi/content-orbit-skill --agent codex --agent claude-code
-
-# 用户级安装，供多个项目使用
-npx skills add https://github.com/bugkiwi/content-orbit-skill --global --agent codex --agent claude-code
 ```
 
-安装后，在 Agent 中调用 `$content-orbit-skill`，并指定目标项目。例如：
+添加 `--global` 可安装到用户目录。安装路径和选项见 [Skills CLI 文档](https://github.com/vercel-labs/skills)。
 
-```text
-使用 $content-orbit-skill，为当前项目研究并准备下个月的文章。
-先检查真实产品事实和现有文章，按项目语言和时区排期。
-```
-
-**Skill 安装与脚本依赖安装是两步。** Skills CLI 负责安装技能文件；第一次执行脚本前，还需要在安装器显示的 Skill 目录运行 `npm ci`。默认项目级安装可这样执行：
+执行脚本前，进入安装器显示的 Skill 目录安装依赖。默认项目级路径为：
 
 ```sh
 (cd .agents/skills/content-orbit-skill && npm ci)
 ```
 
-如果选择全局安装或不同目录，把路径换成安装器显示的实际路径。Skill 可由兼容 Agent Skills 标准的宿主加载；各宿主的调用入口与目录可能不同。安装路径说明见 [Codex 官方 Skill 文档](https://developers.openai.com/codex/skills/)。
-
-## 设计流程
+安装后可在 Agent 中调用：
 
 ```text
-指定项目 + 项目事实/政策 + 语言市场 + 原生公共链接
-                         |
-            +------------+-------------+
-            |                          |
-    DataForSEO 关键词扩展        Google Trends CSV / HTTPS RSS
-    搜索量 / KD / CPC                 新闻标题 / 热度
-            +------------+-------------+
-                         |
-                JEV：实际意图与项目关联
-             文章 / 小功能 / 邻近 / 无关 / 待核实
-                         |
-            文章机会去重 -> 补排期缺口
-                         |
-              SERP研究 + 主来源事实核实
-                         |
-            原创洞察 + 原生语言 Brief / Outline
-                         |
-                 文本模型写作 -> 独立复核调用
-                         ^                 |
-                         +--- 最多2轮修订 -+
-                                           |
-                        +------------------+-----------------+
-                        |                                    |
-                 不达标：保存 draft                 达标 + 配置的批准方式
-                 不能进入发布队列                            |
-                                                   approved，等待日期
-                                                            |
-                     定时 release / 网站构建 -> 本地时区日期门禁
-                                                            |
-                   不可变文章快照 <---- 同一批数据 ----> sitemap.xml
-                              |
-                    站点构建 -> 部署请求 -> Ready 检查
-                              |
-                    HTTP / sitemap / 未来404验证
-                              |
-                    GSC / 转化 / AI实际引用 -> 更新
+使用 $content-orbit-skill，为当前项目准备下个月的文章。
+先检查产品资料和现有文章，再研究选题、安排日期并生成稿件。
 ```
 
-**三个不同的时钟：** 发现机会通常每周；研究和写稿可每周或每月；release 每小时检查。写完一整月稿件，不意味着今天公开一个月的内容。Skill 本身不常驻运行，需要宿主 Agent、CI 或 Cron 触发。
+## 项目配置
 
-## 项目结构
-
-```text
-content-orbit-skill/
-├── SKILL.md                    Agent 使用入口，可整体安装为 Skill
-├── agents/openai.yaml          Skill 发现元数据
-├── scripts/                    CLI、JEV、DataForSEO、写作、发布实现
-├── references/                 分阶段工作流、证据规范、网站发布契约
-├── examples/
-│   ├── project.json            每项目独立配置
-│   ├── product-facts.md        项目事实模板
-│   ├── brief-input.json        研究后填写的写作简报
-│   └── github/                 每周挖掘/写稿 PR、到期发布工作流模板
-├── tests/                      隔离、离线的行为验证
-├── .env.example
-└── package-lock.json
-```
-
-## 依赖与环境
-
-- **Node.js 22+、npm**。运行时依赖 `zod`、`dotenv`、`csv-parse`、`fast-xml-parser`、`undici`；由 lockfile 安装。脚本不依赖特定网站框架或业务数据库。
-- 能读取项目、访问真实搜索/网页并使用本 Skill 的 Agent：负责项目事实核对、原始来源阅读、原创 Brief、人工抽样式的代理检查。自动模型审稿始终标记为 model，不能冒充人工。
-- **OpenRouter API Key**：JEV 决策、写作和复核需要；文本模型必须支持 JSON 输出。
-- **DataForSEO Login/Password 与可用余额**：关键词扩展和指定语言/地区的 Google SERP。没有时可由 Agent 进行真实网页搜索并记录降级边界；关键词指标保持未知。
-- 定时生成需要可按时调用 Agent 的宿主，或提前准备 Brief 后由 CI `batch` 生成。定时上线需要现有站点构建、部署和调度平台；纯本地 `release` 不需要外部凭据。
-
-## 接入一个指定项目
-
-以下以 `/path/to/website` 为要生成文章的网站仓库，不要直接在 `examples/` 中运营真实内容。
+在目标网站根目录复制配置模板。全局安装时，将 `SKILL_DIR` 改为实际安装路径。
 
 ```sh
-# 在目标网站项目根目录执行；全局安装时修改 SKILL_DIR
 SKILL_DIR="$PWD/.agents/skills/content-orbit-skill"
 cp "$SKILL_DIR/examples/project.json" content-orbit-skill.project.json
 cp "$SKILL_DIR/examples/product-facts.md" product-facts.md
-cp "$SKILL_DIR/.env.example" .env
 ```
 
-修改 JSON 与事实文件，尤其是：品牌、网站、受众、真实产品能力、作者、原生语言路由、内链和种子词。清除示例文字。`root` 相对于 JSON 所在目录；内容、状态、输出路径相对于 root。不同项目分别使用配置、目录、事实文件和 `.env`。
+配置分为两部分：
 
-在目标项目 `.gitignore` 加入 `.env`、`.content-orbit-skill/`、`.generated/`；把 `content/editorial/` 中文章、研究、Brief、审核和排期提交到版本库。原始来源材料需要相应公开/存储权限；不要放客户私密素材。
+| 文件 | 内容 |
+| --- | --- |
+| [`content-orbit-skill.project.json`](examples/project.json) | 网站地址、语言与市场、关键词、内链、排期、模型和发布设置 |
+| [`product-facts.md`](examples/product-facts.md) | 当前产品能力、价格、政策及可用于文章的资料 |
+
+修改模板中的示例内容后，运行 `doctor` 检查配置和凭据状态：
+
+```sh
+node "$SKILL_DIR/scripts/cli.mjs" doctor --project content-orbit-skill.project.json
+```
+
+`root` 相对于配置文件所在目录；内容、状态和输出路径相对于 `root`。配置字段与命令参数见 [CLI 使用说明](references/cli.md)。
+
+### 环境变量
+
+在目标项目的 `.env` 中配置以下变量。完整模板见 [`.env.example`](.env.example)。
 
 ```dotenv
-OPENROUTER_API_KEY=填写自己的OpenRouter密钥
-DATAFORSEO_LOGIN=填写自己的API登录名
-DATAFORSEO_PASSWORD=填写自己的API密码
-CONTENT_ORBIT_DEPLOY_HOOK=仅配置已授权的生产分支部署Hook
+OPENROUTER_API_KEY=
+DATAFORSEO_LOGIN=
+DATAFORSEO_PASSWORD=
+CONTENT_ORBIT_DEPLOY_HOOK=
 ```
 
-默认只加载**所选项目根目录的 `.env`**；用 `--env /absolute/file` 选择其他文件。CI 直接注入 Secrets。既有环境变量优先于 dotenv 文件。`HTTP_PROXY`、`HTTPS_PROXY`、`NO_PROXY` 可选，支持小写变量。
+| 变量 | 用途 |
+| --- | --- |
+| `OPENROUTER_API_KEY` | JEV 相关性判断、文章生成和模型复核 |
+| `DATAFORSEO_LOGIN`、`DATAFORSEO_PASSWORD` | 关键词扩展和指定市场的 Google 搜索结果研究 |
+| `CONTENT_ORBIT_DEPLOY_HOOK` | 可选；用于 `release --deploy` 请求网站重新构建 |
+
+默认读取所选项目根目录的 `.env`，也可用 `--env` 指定文件；CI 通过 Secrets 注入。已有环境变量优先。代理连接支持 `HTTP_PROXY`、`HTTPS_PROXY` 和 `NO_PROXY`。
+
+在网站仓库中忽略 `.env`、`.content-orbit-skill/`、`.generated/` 和 `node_modules/`。文章、研究资料、简报和审核记录保存在 `content/editorial/`，随内容变更提交。
+
+## 使用
+
+完整操作包括选题挖掘、搜索研究、简报、写作和发布，见 [工作流说明](references/workflow.md)。以下为常用命令，在目标网站目录执行：
 
 ```sh
-node "$SKILL_DIR/scripts/cli.mjs" doctor \
-  --project content-orbit-skill.project.json
-```
-
-`doctor` 只输出凭据是否存在。离线排期、QA、构建不需要 API Key。
-
-## 配置说明
-
-| 配置 | 作用 |
-|---|---|
-| `name/siteUrl/description/audience/author` | 当前项目身份、实际能力和真实作者 |
-| `factFiles/exclusions` | 可引用的项目事实与不应误称已支持的范围 |
-| `timezone` | IANA 时区；排期、构建日期统一使用它 |
-| `locales[]` | 每语言独立 country、DataForSEO languageCode/locationCode、articleBase、seedKeywords、internalLinks |
-| `calendar` | `weekdays`：0=周日，1=周一；`months`：默认1个日历月 |
-| `paths` | 内容、私有状态、生成快照；三者不可重叠且不能放进 `public/` |
-| `models` | decision 默认 JEV 1.13；writer/reviewer 明确指定，允许相同文本模型的两次独立调用 |
-| `quality` | 默认质量≥90、风险≤20、无硬失败，研究至少5个不同实际结果，最多2次修订 |
-| `quality.approval` | 默认 `quality-gated`，达标稿自动进入到期队列；项目需要逐篇确认时可选 `manual` |
-| `maxProviderCalls` | 每条命令的外部付费 POST 次数上限，默认20；不是美元预算 |
-| `staticPages` | 已有公共页面的完整 sitemap 清单；不填假的 lastmod |
-| `deployment.hookEnv` | 部署 Hook 的环境变量名，不存 Hook 本身 |
-
-样例 en/US=2840、it/IT=2380 仅为配置示例；可增加任意受支持语言和地区。模型 ID 仅作为示例，各项目按可用性和实际写作质量选择。JEV 使用实验性 Decisions 接口，**不会把 JEV 当作文章生成模型**；接口变化需更新 provider adapter。
-
-## 命令与端到端流程
-
-下列示例在目标网站根目录执行。`ORBIT` 只是本终端的脚本路径简写，不是必需配置。
-
-```sh
-SKILL_DIR="${SKILL_DIR:-$PWD/.agents/skills/content-orbit-skill}"
 ORBIT="$SKILL_DIR/scripts/cli.mjs"
-node "$ORBIT" slots --project content-orbit-skill.project.json --from 2026-11-01 --months 1
 
-# 1. 关键词库：种子词来自所选语言配置；也可 --seeds '词一|词二'
-node "$ORBIT" keywords --project content-orbit-skill.project.json --locale it \
-  --limit 50 --output content/editorial/opportunities/it/keywords.json
+# 检查未来一个月的排期缺口
+node "$ORBIT" slots --project content-orbit-skill.project.json
 
-# 2. 趋势：CSV 或 HTTPS RSS；dry-run 只解析，不调用 JEV
+# 从意大利 Google Trends RSS 筛选相关选题
 node "$ORBIT" trends --project content-orbit-skill.project.json --locale it \
-  --input 'https://trends.google.com/trending/rss?geo=IT' --dry-run
-node "$ORBIT" trends --project content-orbit-skill.project.json --locale it \
-  --input /path/to/trending_IT.csv --threshold .75 --top 10 \
-  --output content/editorial/opportunities/it/trends.json
+  --input 'https://trends.google.com/trending/rss?geo=IT' --threshold .75 --top 10
 
-# 3. 将强文章机会补到未占用排期。特征机会不自动变文章。
-node "$ORBIT" plan --project content-orbit-skill.project.json \
-  --input content/editorial/opportunities/it/keywords.json --from 2026-11-01 --months 1
-
-# 4. 对选中的每个词研究 SERP，Agent 阅读结果和主要事实来源
-node "$ORBIT" research --project content-orbit-skill.project.json --locale it \
-  --keyword '实际选中的关键词' --output content/editorial/research/it/topic.json
-
-# 5. Agent 按 examples/brief-input.json 写简报，native locale/date/keyword 须匹配
-node "$ORBIT" brief --project content-orbit-skill.project.json \
-  --input content/editorial/brief-inputs/it/topic.json \
-  --research content/editorial/research/it/topic.json
-
-# 6. 原生起草、独立复核、有限修订；同日期已有稿件就跳过
-node "$ORBIT" generate --project content-orbit-skill.project.json \
-  --brief content/editorial/briefs/it/2026-11-02.json
-# 或从已准备的简报池按日期生成，适合周任务
+# 根据已完成研究的简报生成文章
 node "$ORBIT" batch --project content-orbit-skill.project.json --limit 3
+
+# 校验文章、来源和审核记录
 node "$ORBIT" qa --project content-orbit-skill.project.json
 
-# manual 模式：仅在文章已获明确批准时执行，不绕过质量门槛
-node "$ORBIT" approve --project content-orbit-skill.project.json \
-  --article content/editorial/articles/it/2026/11/2026-11-02-实际slug.md \
-  --by '实际批准人' --note '对该准确稿件的批准依据'
-
-# 7. 本地准备到期快照和 sitemap，不部署
+# 为到期文章生成快照和 sitemap
 node "$ORBIT" release --project content-orbit-skill.project.json
-# 8. 已配置并授权部署时，才发出 Hook
-node "$ORBIT" release --project content-orbit-skill.project.json --deploy
-# 确认托管平台 Ready 后，验证网站已接上快照与 sitemap
-node "$ORBIT" verify --project content-orbit-skill.project.json --base-url https://example.com
 ```
 
-所有命令输出 JSON，默认产物写入所选项目。显式文件参数按当前 shell 目录解析；输出文件必须留在项目 root 内。日期必须是真实日历日期。UTC `16:00` 对上海时区已是次日；不按服务器本地日期判定。
+默认排期为一个日历月；已存在的文章会占用对应语言和日期，包括草稿。生成器跳过这些位置，保留已有内容。每篇文章默认至少研究五个不同的搜索结果，并经过单独的模型复核。
 
-审核分数、相关概率都是模型判断；不代表转化率、收录率或搜索效果。`traffic` 是 Trends 原始热度字符串，不能当成月搜索量；DataForSEO 的付费竞争值不是自然搜索 KD。未知指标使用 `null`，真实测得的0保留为0。没有达标词时返回不足10条或空列表。
+默认发布标准为质量分数至少 90、风险分数不高于 20，且没有事实等硬性问题。项目也可设置为逐篇批准。分数属于模型评审结果，事实核对和正文检查仍由内容维护者负责。
 
-## 定期运行与逐步 release
+所有命令输出 JSON。DataForSEO 和 OpenRouter 调用需要相应账户余额；排期查询、校验和本地发布快照生成无需 API 凭据。调用次数、缓存和重试行为见 [CLI 使用说明](references/cli.md)。
 
-推荐三个层次：
+## 定时运行
 
-1. **每周/每月 Agent 工作流：** 调用本 Skill，读取项目事实与缺口，挖掘、去重、研究、准备 Brief、写作复核，提交内容变更供项目现有流程处理。
-2. **每周机器任务（可选）：** `examples/github/editorial.yml` 挖词、补计划，并从**预先研究好的 Brief 池**生成最多3篇，产出 PR。新发现的词不会自动获得事实核实与原创洞察；需要下一次 Agent 研究工作补 Brief。模板不自动合并。
-3. **每小时 release：** `examples/github/release.yml` 读取已合并的批准内容，按项目时区构建到期快照，必要时请求网站重建。网站构建也必须运行本地 `release`，确保新部署使用构建时的到期快照。
+内容生产与网站发布分别调度。仓库提供两份 GitHub Actions 模板：
 
-一个定时 Agent 的任务文本示例：
+| 任务 | 模板 | 行为 |
+| --- | --- | --- |
+| 每周选题与写作 | [`editorial.yml`](examples/github/editorial.yml) | 挖掘关键词、补充排期，从已准备的简报中生成文章并创建 PR |
+| 每小时发布检查 | [`release.yml`](examples/github/release.yml) | 检查已合并、已批准且到期的文章，按需请求网站重建 |
 
-```text
-使用 $content-orbit-skill，项目配置 /path/to/website/content-orbit-skill.project.json。
-每周检查未来一个月的缺口，结合项目种子词和 IT Trends RSS 挖掘机会。
-仅对直接文章机会做真实研究、原创 Brief、原生写作与复核。
-保留现有稿件，缺少证据就记录阻塞，不补凑文章。
-把新增内容交给本仓库的 PR 流程；本任务不包含部署。
+新选题的来源阅读和简报准备由 Agent 完成，可通过所用 Agent 工具的定时任务执行。`batch` 只处理已准备的简报。
+
+使用 GitHub 模板时，在网站仓库安装本工具并提交 lockfile：
+
+```sh
+npm install --save-dev github:bugkiwi/content-orbit-skill#main
 ```
 
-Skill 文件不是一个调度服务；定时 Agent 需在实际宿主中配置。这里只提供任务文本与可运行 CI 模板，**没有在任何账户上创建自动化**。
+将模板复制到 `.github/workflows/`，配置 Secrets，并按项目调整安装命令、内容路径和状态缓存目录。生产环境建议将依赖固定到已审查的 commit SHA。模板的配置文件位于仓库根目录，`root` 为 `"."`。
 
-要用 GitHub 模板：在网站仓库安装本工具（可用 `npm install --save-dev github:bugkiwi/content-orbit-skill#main`；生产 CI 建议固定到已审查的 commit SHA，或使用可检出的 vendored `file:tools/content-orbit-skill`），提交对应 lockfile，将模板复制到 `.github/workflows/`，配置 Secrets，再按站点包管理器、配置名和内容目录调整模板。`add-paths` 默认 `content/editorial`，自定义目录时连同缓存的状态目录一并修改；示例要求配置在仓库根且 `root: "."`。使用 pnpm/yarn 的项目更换安装和调用命令。
+发布任务需要保留部署状态记录，并与其他发布任务串行运行。GitHub 模板使用 Cache；需要更严格的并发和恢复控制时，应使用持久存储。部署失败与超时处理见 [发布说明](references/publication.md)。
 
-调度不是准点 SLA：GitHub 定时任务运行在默认分支，可能延迟；每小时17分仅用于补偿检查，实际可见时间还取决于构建。CI `concurrency` 防同组并发，本机项目锁防并发写入；不要让另一套调度器同时运营同一项目。
+## 网站接入
 
-## 网站构建适配与 sitemap
+网站构建前执行 `release`，读取 `.generated/content-orbit-skill/current.json` 指向的发布目录：
 
-`release` 产生：
+| 文件 | 用途 |
+| --- | --- |
+| `articles.json` | 文章正文与公开元数据 |
+| `sitemap.xml` | 配置的静态页面和本次发布的文章 URL |
+| `release.json` | 发布标识、构建日期、时区和文章数量 |
 
-```text
-.generated/content-orbit-skill/
-├── current.json                原子切换的指针
-└── releases/<releaseId>/
-    ├── articles.json           仅已批准、发布/更新日期都到期的正文与公开元数据
-    ├── sitemap.xml             同一批文章 + staticPages
-    └── release.json            构建日期、时区、releaseId、数量
-.content-orbit-skill/
-├── schedule.json               私有：下一个待发布日期，无公开路由
-├── cache/                      成功 Provider 响应缓存，用于断点复用
-├── deployments/<releaseId>.json
-└── run.lock/                   本机排他锁
-```
+文章路由、元数据、列表和相关文章应读取同一份快照，未来或未知文章返回 404。已有 sitemap 的网站应将文章数据合并到原有生成逻辑中，保留其他公共页面。
 
-`releaseId` 取决于公开文章与 sitemap，日期变化而内容不变不会产生新 release。先写不可变目录，再原子更新 `current.json`；网站一次构建只解析一次指针，页面和 sitemap 读同一目录。不要把整个目录、历史 release、原始文章或研究目录作为静态资源公开。
+`release` 只生成本地文件。配置部署 Hook 后，使用 `release --deploy` 请求重建；构建完成后运行 `verify` 检查 sitemap 和文章路由。具体接入约定见 [网站发布说明](references/publication.md)。
 
-**必须完成一个站点适配器，才能实际发布文章。** 见 [publication.md](references/publication.md)：构建前执行 release，路由/元数据/列表/相关文章/feeds 共用快照；未知/未来文章404；sitemap 消费同一批数据。现有 sitemap 较复杂时将当前清单合并进现有 sitemap builder，保留原有规则；当前 CLI 输出的是完整 urlset，不自动抓取并覆盖既有线上 sitemap。
-
-未来 Markdown 仍可以安全地提交进源码库，前提是未来正文不被打包进可下载 runtime/browser assets。CLI 无公开日期覆盖参数，也不提供请求时读取原始 Markdown 的后门。`release` 只处理本地文件；`--deploy` 必须有 Hook 才会请求远程。
-
-部署请求前持久化 intent，响应超时记为 `unknown`；同一 release 默认不再提交，防止盲目重复构建。确认托管平台实际状态后才用 `--deploy --retry-deploy`。`requested` 表示 Hook 接受，不等于 Ready 或发布成功。失败时不会自动移回旧 release；生产仍由托管平台保留上一部署。
-
-GitHub 模板通过 Cache 跨 runner 保留 ledger，但缓存可能被驱逐、写入可能中断；这是低频发布的尽力去重，不是跨平台严格 exactly-once。重要生产任务请将 ledger 放到持久卷/事务存储并使用全局租约，或采用托管平台原生受鉴权的调度端点。不要将本机锁误当分布式锁。
-
-`verify` 检查线上 sitemap 集合与当前本地快照一致、到期路由200及未公开文章404；不证明正文渲染、hreflang 或主站其他 SEO 要求。适配完成后还需运行网站自己的构建、路由、metadata/schema 和浏览器检查。
-
-## 成本、错误与恢复
-
-- 每次 Provider POST 都可能计费；没有自动网络重试或偷偷切模型。最多2轮改稿会产生额外写作/复核调用。
-- 成功请求按请求内容缓存；JEV、写作/复核可重用相同输入。DataForSEO 缓存按项目时区当日分隔。缓存复用不代表重新测量；保留原始 retrieval timestamp。
-- 关键词原始响应、任务ID、模型ID和用量保留。失败/超时调用也可能计费，不能把成功响应的 cost 汇总冒充完整账单。没有预估美元硬上限，`maxProviderCalls` 是每进程次数限制。
-- API Key 缺失、SERP不足、未知实体或质量不达标，都有可见失败/草稿状态。错误不输出密钥或 Hook；不要用 `set -x` 调试凭据命令。
-- 生成中断后重跑会复用已缓存的成功调用并跳过已存在文章。低分草稿不会被普通 batch 覆盖。修改/重新复核需要明确的维护任务，详见 workflow reference。
-- 项目锁中断后可能残留；先确认 owner.json 中进程已停止，再手动移除锁。不要因为等待就盲删活跃锁。
-
-## 开发与验证
-
-开发本 Skill 可直接克隆仓库：
+## 开发
 
 ```sh
 git clone https://github.com/bugkiwi/content-orbit-skill.git
@@ -292,16 +172,12 @@ npm ci
 npm run check
 ```
 
-测试使用临时项目与内存 Provider 响应，不消耗 API 余额或操作生产：覆盖未来内容门禁、sitemap同步、日期/时区、审核绑定、项目隔离、已有稿件跳过、手动批准、有限改稿、缓存、锁与部署超时。
+测试使用隔离项目和模拟 Provider 响应，覆盖排期、审核记录、未来内容隔离、sitemap、缓存和部署恢复。真实 Provider 连接及网站构建需在目标环境验证。
 
-本地测试使用隔离项目和模拟 Provider 响应。真实 Provider 账户权限、实验接口及最终网站构建适配，需要在目标项目中验证。仓库提供工作流模板，安装 Skill 不会自动创建定时任务或修改网站。
+## 文档
 
-## 官方接口参考
-
-- [DataForSEO Google Keyword Ideas](https://docs.dataforseo.com/v3/dataforseo_labs/google/keyword_ideas/live/)
-- [DataForSEO Google organic live advanced](https://docs.dataforseo.com/v3/serp/google/organic/live/advanced/)
-- [OpenRouter TypeSafe 模型入口](https://openrouter.ai/typesafe)
-- [GitHub Actions schedule](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#schedule)
-- [Google AI 搜索内容指南](https://developers.google.com/search/docs/fundamentals/ai-optimization-guide)
-
-可引用的原创信息、正常可索引页面和事实准确性贯穿流程。分批发布时间、文章数量或某种文件格式都不保证收录和 AI 引用。
+- [Skill 入口](SKILL.md)
+- [工作流与维护](references/workflow.md)
+- [研究、证据与写作规范](references/research-writing.md)
+- [CLI 命令与配置](references/cli.md)
+- [网站接入与发布](references/publication.md)
